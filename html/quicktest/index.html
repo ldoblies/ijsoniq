@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>IndexedDB Wrapper Quick Test</title>
+  <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body class="vbox" onload="onload();">
+<div id="head">IDBWrapper Quick Test</div>
+<div class="container">
+  <p>Open the console and click 'Open DB'. You will then see a bunch of buttons
+    that allow data manipulation. Click them, and check the console for
+    results.</p>
+
+  <p id="openWrapper" style="display: none;">
+    <button onclick="createStore_1_1()">Open DB</button>
+  </p>
+  <div id="dataWrapper" style="display:none;">
+  <p>
+    <button onclick="testWrite()">put</button>
+    <br/>
+    <button onclick="testRead()">get</button>
+    <br/>
+    <button onclick="testGetAll()">getAll</button>
+    <br/>
+    <button onclick="testRemove()">remove</button>
+    <br/>
+    <button onclick="testClear()">clear</button>
+    <br/>
+    <button onclick="testBatch()">batch</button>
+    <br/>
+    <button onclick="testUpdate()">update</button>
+  </p>
+
+  <hr/>
+
+  <p>
+    <button onclick="testInsertIntoObject()">IJSONiq: insert-into-object</button>
+    <br/>
+    <button onclick="testDeleteFromObject()">IJSONiq: delete-from-object</button>
+    <br/>
+    <button onclick="testReplaceInObject()">IJSONiq: replace-in-object</button>
+    <br/>
+    <button onclick="testReplace()">IJSONiq: replace</button>
+    <br/>
+    <button onclick="testRenameInObject()">IJSONiq: rename-in-object</button>
+    <br/>
+    <button onclick="testArrInsert()">IJSONiq: insert-into-array</button>
+    <br/>
+    <button onclick="testArrDelete()">IJSONiq: delete-from-array</button>
+    <br/>
+    <button onclick="testArrReplace()">IJSONiq: replace-in-array</button>
+    <br/>
+    <button onclick="testDelete()">IJSONiq: delete</button>
+    <br/>    
+    <button onclick="testInsert()">IJSONiq: insert</button>
+    <br/>  
+    <button onclick="testPul()">IJSONiq: Test PUL</button>
+    <br/>
+    <button onclick="testTx()">IJSONiq: Test Transaction</button>
+  </p>
+</div>
+</div>
+
+<script type="text/javascript" src="../../require.js"></script>
+<script type="text/javascript">
+  
+  require(['../../lib/idbwrapper', '../../lib/ijsoniq', '../../lib/pul'], function(IDBWrapper, IJSONiq, PUL){});
+
+
+  function onload () {
+    document.getElementById('openWrapper').style.display = '';
+  }
+
+  /* methods for walking thorugh the data ops: */
+
+  var lastnames = ['Smith', 'Miller', 'Doe', 'Frankenstein', 'Furter'],
+      firstnames = ['Peter', 'John', 'Frank', 'James'],
+      id = 1;
+
+  function testWrite (store) {
+    store = store || store_1_1;
+    var dataObj = {
+      lastname: lastnames[Math.floor(Math.random() * 5)],
+      firstname: firstnames[Math.floor(Math.random() * 4)],
+      age: Math.floor(Math.random() * (100 - 20)) + 20,
+      //arr: [1,2,3,4,5,6,7,8,9,1,2,3,4,5,6,7,8,9,1,2,3,4,5,6,7,8,9,1,2,3,4,5,6,7,8,9,1,2,3,4,5,6,7,8,9],
+      arr: [1,2,3,4,5,6,7,8,9],
+      id: id++
+    };
+    store.put(dataObj, function (result) {
+      console.log('put() call success. Result:', result);
+    });
+  }
+
+  function testRead (store) {
+    store = store || store_1_1;
+    store.get(1, function (result) {
+      console.log('get() call success. Result:', result);
+    });
+  }
+
+  function testUpdate(store) {
+    store = store || store_1_1;
+    var upd = {
+      type: 0, key: "firstname", val: "updatedFirstName" 
+    };
+    store.update(1, upd, function(result) {
+        console.log('update() call success. Resutl: ', result);
+    });
+  }
+
+  function testGetAll (store) {
+    store = store || store_1_1;
+    store.getAll(function (result) {
+      console.log('getAll() call success. Result:', result);
+    });
+  }
+
+  function testRemove (store) {
+    store = store || store_1_1;
+    store.remove(1, function (result) {
+      console.log('remove() call success. Result:', result);
+    });
+  }
+
+  function testClear (store) {
+    store = store || store_1_1;
+    store.clear(function (result) {
+      console.log('clear() call success. Result:', result);
+    });
+  }
+
+  function testBatch (store) {
+    store = store || store_1_1;
+    var list = [];
+    for (var i = 0; i < 5; i++) {
+      var dataObj = {
+        lastname: lastnames[Math.floor(Math.random() * 5)],
+        firstname: firstnames[Math.floor(Math.random() * 4)],
+        age: Math.floor(Math.random() * (100 - 20)) + 20,
+        id: id++
+      };
+      list.push({ type: "put", value: dataObj });
+    }
+    store.batch(list, function (result) {
+      console.log('batch() call success. Result:', result);
+    }, function (error) {
+      console.log("error", error);
+    });
+  }
+
+  function testInsertIntoObject(store) {
+    store = store || store_1_1;
+    var target = {
+      collection: 'testStore_1_1',
+      key: 1,
+      path: "a.b"
+    }
+    var toInsert = {
+        a: 1,
+      b: 2,
+      c: {d: { e: 3}}
+    };
+
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+    IJSONiq.insert_into_object(target, toInsert, function(){
+      target.path = undefined;
+      var toInsert = {arr: [1,2,3]};
+      IJSONiq.insert_into_object(target, toInsert);
+    });
+}
+
+  function testDeleteFromObject(store) {
+    store = store || store_1_1;
+    var target = {
+      collection: 'testStore_1_1',
+      key: 1
+    }
+
+    var toDelete = ['a'];
+
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+    IJSONiq.delete_from_object(target, toDelete);         
+  }
+
+  function testReplaceInObject(store) {
+    store = store || store_1_1;
+    var target = {
+      collection: 'testStore_1_1',
+      key: 1
+    }
+
+    var name = "firstname";
+    var val = "replacedFirstName";
+
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+    IJSONiq.replace_in_object(target, name, val);         
+  }
+ 
+  function testRenameInObject(store) {
+    store = store || store_1_1;
+    var target = {
+      collection: 'testStore_1_1',
+      key: 1
+    }
+
+    var name = "a";
+    var val = "renamedInObject";
+
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+    IJSONiq.rename_in_object(target, name, val);         
+  }
+
+
+  function testArrInsert(store) {
+    store = store || store_1_1;
+    var target = {
+      collection: 'testStore_1_1',
+      key: 1,
+      path: "arr"
+    }
+
+    var val =  ["inserted", "into", "array"];
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+    IJSONiq.insert_into_array(target, 2,val);         
+  }
+ 
+  function testArrDelete(store) {
+    store = store || store_1_1;
+    var target = {
+      collection: 'testStore_1_1',
+      key: 1,
+      path: "arr"
+    }
+
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+    IJSONiq.delete_from_array(target, 1);         
+  }
+
+  function testArrReplace(store) {
+    store = store || store_1_1;
+    var target = {
+      collection: 'testStore_1_1',
+      key: 1,
+      path: "arr"
+    }
+
+    var val = "replacedInArray";
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+    IJSONiq.replace_in_array(target, 1, val);         
+  }
+
+  function testArrDelete(store) {
+    store = store || store_1_1;
+    var target = {
+      collection: 'testStore_1_1',
+      key: 1,
+      path: "arr"
+    }
+
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+    IJSONiq.delete_from_array(target, 1);         
+  }
+
+  function testReplace(store) {
+    store = store || store_1_1;
+    var target = {
+      collection: 'testStore_1_1',
+      key: 2
+    }
+
+    var val = {id: 2, "replaced": "object"};
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+    IJSONiq.replace(target, val);         
+  }
+function testTx() {
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+
+    IJSONiq.testTransaction();
+}
+
+   function testDelete(store) {
+    store = store || store_1_1;
+    var target = {
+      collection: 'testStore_1_1'
+    }
+
+    var ids = [10,11,12];
+    var onSuccess = function(){
+      console.log("delete succeeded");
+    };
+    var onError = function(){
+      console.log("delete failed");
+    };
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+    IJSONiq.del(target, ids, onSuccess, onError);
+  }
+
+  function testInsert(store) {
+    store = store || store_1_1;
+    var target = {
+      collection: 'testStore_1_1'
+    }
+
+    var items = [{id: 10, val: 0}, {id: 11, val: 0}, {id: 12, val: 0}];
+    var onSuccess = function(){
+      console.log("insert succeeded");
+    };
+    var onError = function(){
+      console.log("insert failed");
+    };
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+    IJSONiq.insert(target.collection, items, onSuccess, onError);
+  }
+
+  function testPul(store) {
+    store = store || store_1_1;
+    var target = {
+      collection: 'testStore_1_1',
+      key: 1
+    }
+
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+    var UPFactory = requirejs('../../lib/pul').UPFactory;
+    var PUL = requirejs('../../lib/pul').PendingUpdateList;
+
+    var p = new PUL();
+
+    
+    // Insert name/value pairs
+    var insertObj = {aValue: 1, anArray: [1,2,3], anObject: {a: 1, b:2}};
+    var up = UPFactory.insert_into_object(target, insertObj);
+    p.addUpdatePrimitive(up);
+
+    // Delete anObject.a
+    target.path = "anObject";
+    up = UPFactory.delete_from_object(target, ["a"]);
+    p.addUpdatePrimitive(up);
+
+    // Replace the value of anObject.b
+    up = UPFactory.replace_in_object(target, "b", 1);
+    p.addUpdatePrimitive(up);
+
+    // Rename anObject.b
+    up = UPFactory.rename_in_object(target, "b", "renamedInObject");
+    p.addUpdatePrimitive(up);    
+
+    // Replace anObject.renamedInObject
+    up = UPFactory.replace_in_object(target, "renamedInObject", {replaced: "inObject"});
+    p.addUpdatePrimitive(up);
+
+
+    // Clear the array
+    target.path = "anArray";
+    up = UPFactory.delete_from_array(target, 1);
+    p.addUpdatePrimitive(up);
+    p.addUpdatePrimitive(up);
+    p.addUpdatePrimitive(up);
+
+    // Insert other values into the array
+    up = UPFactory.insert_into_array(target, 1, [4, 4, 6]);   
+    p.addUpdatePrimitive(up);
+
+    // Replace the 2nd 4 with 5
+    // NOTE: 1-based index as in XQuery
+    up = UPFactory.replace_in_array(target, 2, 5);
+    p.addUpdatePrimitive(up);
+
+    // Insert a document 
+    up = UPFactory.insert(target, [{value: "fromInsert"}]);
+    p.addUpdatePrimitive(up);
+
+    // Delete some items
+    //up = UPFactory.del(target, [2,3,4]);
+    //p.addUpdatePrimitive(up);
+
+    // Apply the PUL
+    // In the end, the result should be:
+    // {aValue: 1, anArray: [4, 5, 6], 
+    //  anObject: {renamedInObject: {replaced: "inObject"}}}
+    var onResult = function(result, error){
+      if (error){
+        console.log("applyPul Error", error);
+      }else{
+        console.log("applyPul succeeded, inverted PUL:");
+        console.log(JSON.stringify(result));
+        IJSONiq.applyPul(result, function(){
+            console.log("Applying inverted PUL succeeded.");
+            });
+      }
+    };
+
+    IJSONiq.applyPul(p, onResult);
+  }
+
+
+  /* create a store using the wrapper and kick off: */
+
+  function createStore_1_1 () {
+   var IDBWrapper = requirejs('../../lib/idbwrapper').IDBWrapper;
+   window['store_1_1'] = new IDBWrapper({
+      dbVersion: '1',
+      storeName: 'testStore_1_1',
+      keyPath: 'id',
+      autoIncrement: true,
+      onStoreReady: function () {
+        console.log('Store ready, go ahead!');
+        console.log('The store is accessible at window.store_1_1');
+
+        document.getElementById('openWrapper').style.display = 'none';
+        document.getElementById('dataWrapper').style.display = '';
+      }
+    });
+  }
+
+</script>
+</body>
+</html>
