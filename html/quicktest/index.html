@@ -56,9 +56,9 @@
     <button onclick="testInsert()">IJSONiq: insert</button>
     <br/>  
     <button onclick="testPul()">IJSONiq: Test PUL</button>
-    <br/>
-    <button onclick="testTx()">IJSONiq: Test Transaction</button>
-  </p>
+    <br/>  
+    <button onclick="testCollection()">IJSONiq: Test Collection</button>
+</p>
 </div>
 </div>
 
@@ -274,6 +274,7 @@
     var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
     IJSONiq.replace(target, val);         
   }
+
 function testTx() {
     var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
 
@@ -313,6 +314,27 @@ function testTx() {
     var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
     IJSONiq.insert(target.collection, items, onSuccess, onError);
   }
+
+  function testCollection(store) {
+    store = store || store_1_1;
+      
+    var collection = 'testStore_1_1';
+
+    var onItem = function(item){
+      if (!item){
+        console.log(collection + ": No more items")
+        console.log("testCollection succeeded");
+      }else{
+        console.log(collection + ": Item:", item);
+      }
+    };
+    var onError = function(err){
+      console.log("testCollection failed:", err);
+    };
+    var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
+    IJSONiq.collection(collection, onItem, onError);
+  }
+
 
   function testPul(store) {
     store = store || store_1_1;
