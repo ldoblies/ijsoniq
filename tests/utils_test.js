@@ -13,7 +13,7 @@ define(function(require, exports, module) {
   var fs = require('fs');
   var path = require('path');
 
-  var ObjectDiff = require('../lib/objectDiff');
+//  var ObjectDiff = require('../lib/objectDiff');
 
   module.exports = {
 
@@ -98,12 +98,6 @@ define(function(require, exports, module) {
     console.log(obj); 
     assert.ok(!Utils.arrayDelete(obj, "b.c", 1));
     console.log(obj);
-  },
-
-  "test: objectDiff": function() {
-    var obj = {a: 1, b: { c: [1,2,3,4]}};
-    var obj2 = {a: 1, b: { c: 2}} ;
-    console.log(JSON.stringify(ObjectDiff.diff(obj,obj2), null, 2));
   }
 
 }
