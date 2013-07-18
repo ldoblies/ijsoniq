@@ -351,13 +351,15 @@ function testTx() {
 
     
     // Insert name/value pairs
-    var insertObj = {aValue: 1, anArray: [1,2,3], anObject: {a: 1, b:2}};
+    var insertObj = {aValue: 1, anArray: [1,2,3], anObject: {a: 1, b:2, c:1}};
     var up = UPFactory.insert_into_object(target, insertObj);
     p.addUpdatePrimitive(up);
 
-    // Delete anObject.a
+    // Delete anObject.a and anObject.c
     target.path = "anObject";
     up = UPFactory.delete_from_object(target, ["a"]);
+    p.addUpdatePrimitive(up);
+    up = UPFactory.delete_from_object(target, ["c"]);
     p.addUpdatePrimitive(up);
 
     // Replace the value of anObject.b
@@ -375,9 +377,11 @@ function testTx() {
 
     // Clear the array
     target.path = "anArray";
+    up = UPFactory.delete_from_array(target, 3);
+    p.addUpdatePrimitive(up);
+    up = UPFactory.delete_from_array(target, 2);
+    p.addUpdatePrimitive(up);
     up = UPFactory.delete_from_array(target, 1);
-    p.addUpdatePrimitive(up);
-    p.addUpdatePrimitive(up);
     p.addUpdatePrimitive(up);
 
     // Insert other values into the array
