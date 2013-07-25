@@ -6,6 +6,8 @@ define(function(require, exports, module) {
   "use strict";
 
   var assert = require("./assertions");
+  
+  var VERBOSE = false;
 
   var requirejs = require('../r');
   var PUL = require('../lib/pul').PendingUpdateList;
@@ -19,7 +21,7 @@ define(function(require, exports, module) {
   var path = require('path');
 
   function asserting(text){
-    console.log("Asserting that", text);
+    debugMsg("Asserting that", text);
   }
   
   function assertUnique(arr){
@@ -38,12 +40,19 @@ define(function(require, exports, module) {
     });
   }
 
+  function debugMsg(msg){
+    if (VERBOSE){
+      console.log(msg);
+    }
+  };
+
   function assertNormalized(pul){
-    console.log("Asserting that PUL is normalized...");
+    debugMsg("Asserting that PUL is normalized...");
     asserting("PUL is valid");
     assert.ok(!pul.error);
-    console.log("Input PUL:", JSON.stringify(pul, null, 2));
+    debugMsg("Input PUL:", JSON.stringify(pul, null, 2));
     var targets = new PULNormalizer().computeTargets(pul);
+    debugMsg("Computed PUL Targets: " + JSON.stringify(targets,null,2));
 
     // 1. jupd:insert
     // Unique UP with same target
@@ -81,7 +90,7 @@ define(function(require, exports, module) {
     // 5. jupd:replace-in-object
     // Unique UP with same target
     asserting("replace-in-object UPs are unique w.r.t. target");
-    assertUnique(targets.replace_in_object);
+    assertUnique(targets.replace_in_object_selected);
     // No replace on deleted objects
     asserting("there are no replace-in-object UPs for deleted objects");
     assertNoIntersection(targets.delete_from_object_selected,
@@ -90,7 +99,7 @@ define(function(require, exports, module) {
     // 6. jupd:rename-in-object 
     // Unique UP with same target
     asserting("rename-in-object UPs are unique w.r.t. target");
-    assertUnique(targets.rename_in_object);
+    assertUnique(targets.rename_in_object_selected);
     // No rename on deleted objects
     asserting("there are no rename-in-object UPs for deleted objects");
     assertNoIntersection(targets.delete_from_object_selected,
@@ -114,9 +123,8 @@ define(function(require, exports, module) {
     asserting("there are no replace-in-array UPs for deleted elements");
     assertNoIntersection(targets.replace_in_array, targets.delete_from_array);        
 
-    console.log("...PUL normalization assertion complete.");
+    debugMsg("...PUL normalization assertion complete.");
 
-    console.log("Computed PUL Targets: " + JSON.stringify(targets,null,2));
   }
 
 
@@ -125,7 +133,7 @@ define(function(require, exports, module) {
 
     name: "PUL",
 
-    "test: valid inserts, deletes": function() {
+    "test: insert, delete": function() {
       var target = {
         collection: 'collection0'
       };
@@ -148,12 +156,39 @@ define(function(require, exports, module) {
       
       p = normalizer.normalize(p);
       
+      assertNormalized(p);
+    },
+
+    "test: insert-into-object": function() {
+      var target = {
+        collection: 'collection0'
+      };
+      var target2 = {
+        collection: 'collection1'
+      };
+      var normalizer = new PULNormalizer();
+      var p = new PUL();
+
+      var obj = {a: 1, b: {c: 2}};
+      var obj2 = {d: 1, e: 1, f: 1};
+      p.addUpdatePrimitive(UPFactory.insert_into_object(target,obj));
+      p.addUpdatePrimitive(UPFactory.insert_into_object(target,obj2));
+      target.path = "c";
+      p.addUpdatePrimitive(UPFactory.insert_into_object(target,obj));
+
+      p = normalizer.normalize(p);
 
       assertNormalized(p);
 
+      p = new PUL();
+      p.addUpdatePrimitive(UPFactory.insert_into_object(target,obj));
+      p.addUpdatePrimitive(UPFactory.insert_into_object(target,obj));
+      p = normalizer.normalize(p);
+      assert.ok(p.error);
+      debugMsg(p.error);
     },
     
-    "test: non-effective replace-in-object": function() {
+    "test: replace-in-object, delete-from-object": function() {
       var target = {
         collection: 'collection0',
         key: 0,
@@ -177,12 +212,56 @@ define(function(require, exports, module) {
       target2.path = "c";
       p.addUpdatePrimitive(UPFactory.replace_in_object(target2, "d", 0)); // c.d, non-effective 
 
+      debugMsg("PUL before normalization: " + JSON.stringify(p,null,2));
       p = normalizer.normalize(p);
-      if (p.error) { console.log("Error:", p.error)};
+      if (p.error) { 
+        debugMsg("Error:", p.error);
+      }
       assertNormalized(p);
-    }
 
-   }
+      assert.equal(p.replace_in_object.length, 2);
+      var targets = normalizer.computeTargets(p);
+      assert.ok(_.contains(targets.replace_in_object_selected, "collection0:0:a.a"));
+      assert.ok(_.contains(targets.replace_in_object_selected, "collection0:0:b"));
+    },
+   
+    "test: rename-in-object, delete-from-object": function() {
+      var target = {
+        collection: 'collection0',
+        key: 0,
+        path: "a"
+      };
+      var target2 = {
+        collection: 'collection0',
+        key: 0
+      };
+      var normalizer = new PULNormalizer();
+      var p = new PUL();
+      p.addUpdatePrimitive(UPFactory.delete_from_object(target, "b")); // a.b
+      p.addUpdatePrimitive(UPFactory.rename_in_object(target, "a", 0)); // a.a, effective
+      p.addUpdatePrimitive(UPFactory.rename_in_object(target, "b", 0)); // a.b, non-effective
+      target.path = "a.b.c";
+      p.addUpdatePrimitive(UPFactory.rename_in_object(target, "d", 0)); // a.b.c.d, non-effective
+
+      p.addUpdatePrimitive(UPFactory.delete_from_object(target2, "c")); // c
+      p.addUpdatePrimitive(UPFactory.rename_in_object(target2, "b", 0)); // b, effective
+      p.addUpdatePrimitive(UPFactory.rename_in_object(target2, "c", 0)); // c, non-effective
+      target2.path = "c";
+      p.addUpdatePrimitive(UPFactory.rename_in_object(target2, "d", 0)); // c.d, non-effective 
+
+      debugMsg("PUL before normalization: " + JSON.stringify(p,null,2));
+      p = normalizer.normalize(p);
+      if (p.error) { 
+        debugMsg("Error:", p.error);
+      }
+      assertNormalized(p);
+
+      assert.equal(p.rename_in_object.length, 2);
+      var targets = normalizer.computeTargets(p);
+      assert.ok(_.contains(targets.rename_in_object_selected, "collection0:0:a.a"));
+      assert.ok(_.contains(targets.rename_in_object_selected, "collection0:0:b"));
+    }
+  }
 });
 
 if (typeof module !== "undefined" && module === require.main) {

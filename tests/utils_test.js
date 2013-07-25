@@ -21,20 +21,6 @@ define(function(require, exports, module) {
 
 "test: keyValuePairs": function() {
   var obj = {"a": 1, "b": 2, c: {d: 4}};
-  //console.log(Utils.getKeyValuePairs(obj));
-},
-
-"test: serializeID": function() {
-  var id = {
-    collection: "Reservation", 
-    key: 13,
-    path: "room.name"
-  };
-  assert.equal(Utils.serializeDBObjectID(id), "Reservation:13:room.name");
-  var parsedId = Utils.parseDBObjectID("Reservation:13:room.name");
-  assert.equal(parsedId.collection, "Reservation");
-  assert.equal(parsedId.key, 13);
-  assert.equal(parsedId.path, "room.name");      
 },
 
   "test: hasKey": function() {
@@ -64,7 +50,8 @@ define(function(require, exports, module) {
   "test: set": function() {
     var obj = {a: 1, b: {c: 2}};
 
-    assert.ok(Utils.set(obj, "a", 2));
+    assert.ok(!Utils.set(obj, "a", 2));
+    assert.ok(Utils.set(obj, "a", 2, true));
     assert.equal(obj.a, 2);
 
     assert.ok(Utils.set(obj, "c.d.e", 3));
@@ -91,13 +78,51 @@ define(function(require, exports, module) {
     var arr = obj.b.c;
 
     assert.ok(Utils.arrayDelete(obj, "b.c", 1));
-    console.log(obj);
+    //console.log(obj);
     assert.ok(Utils.arrayDelete(obj, "b.c", 0));
-    console.log(obj);
+    //console.log(obj);
     assert.ok(Utils.arrayDelete(obj, "b.c", 1));
-    console.log(obj); 
+    //console.log(obj); 
     assert.ok(!Utils.arrayDelete(obj, "b.c", 1));
-    console.log(obj);
+    //console.log(obj);
+  },
+
+  "test: serializeTarget": function(){
+    var target = {collection: "c", key: 0, path: "a.b"};
+    assert.equal(Utils.serializeTarget(target), "c:0:a.b");
+    assert.equal(Utils.serializeTarget(target, "c"), "c:0:a.b.c");
+    delete target.path;
+    assert.equal(Utils.serializeTarget(target), "c:0");
+    assert.equal(Utils.serializeTarget(target,"a.b.c"), "c:0:a.b.c");
+    target.path = "a.b.arr";
+    assert.equal(Utils.serializeTarget(target), "c:0:a.b.arr");
+    assert.equal(Utils.serializeTarget(target, 0, true), "c:0:a.b.arr:0");
+    target.path = "arr";
+    target.key = 1;
+    assert.equal(Utils.serializeTarget(target, 1, true), "c:1:arr:1"); 
+    delete target.path;
+    assert.equal(Utils.serializeTarget(target, "arr.1"), "c:1:arr.1"); 
+  }, 
+
+  "test: containsTarget": function(){
+    assert.ok(Utils.containsTarget("a", "a"));
+    assert.ok(Utils.containsTarget("a", "a.b"));
+    assert.ok(Utils.containsTarget("0:a", "0:a"));
+    assert.ok(Utils.containsTarget("0:a", "0:a.b"));
+    assert.ok(Utils.containsTarget("c:0:a", "c:0:a"));
+    assert.ok(Utils.containsTarget("c:0:a", "c:0:a.b"));
+    assert.ok(Utils.containsTarget("c:0:a", "c:0:a.b.c.d.e"));
+    var c1 = {collection: "c", key: 0, path: "a"};
+    var c2 = "c:0:a.b.c";
+    assert.ok(Utils.containsTarget(c1,c2));
+
+    assert.ok(!Utils.containsTarget("a", "b"));
+    assert.ok(!Utils.containsTarget("a", "b.c"));
+    assert.ok(!Utils.containsTarget("c:0:a", "a"));
+    assert.ok(!Utils.containsTarget("c:0:a", "c:1:a"));
+    assert.ok(!Utils.containsTarget("c:0:a", "d:0:a"));
+    assert.ok(!Utils.containsTarget("c:0:a", "c:0:b"));
+    assert.ok(!Utils.containsTarget("c:0:a", "c:0:b.c.d.e"));
   }
 
 }
