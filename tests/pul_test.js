@@ -6,8 +6,8 @@ define(function(require, exports, module) {
   "use strict";
 
   var assert = require("./assertions");
-  
-  var VERBOSE = false;
+
+  var VERBOSE = true;
 
   var requirejs = require('../r');
   var PUL = require('../lib/pul').PendingUpdateList;
@@ -21,9 +21,16 @@ define(function(require, exports, module) {
   var path = require('path');
 
   function asserting(text){
-    debugMsg("Asserting that", text);
+    debugMsg("Asserting that " +  text);
   }
-  
+
+  /* Assert contents of arr matches items */
+  function assertArrayContents(arr, items){
+    // console.log("arr: " + arr + ", items: " + items);
+    assert.ok(arr.length === items.length);
+    assert.equal(_.difference(arr, items).length, 0);
+  }
+
   function assertUnique(arr){
     assert.equal(arr.length, _.uniq(arr).length);
   }
@@ -45,6 +52,85 @@ define(function(require, exports, module) {
       console.log(msg);
     }
   };
+
+  function testNonEffective(upd) {
+    var target = {
+      collection: 'collection0',
+      key: 0,
+      path: "a"
+    };
+    var target2 = {
+      collection: 'collection0',
+      key: 0
+    };
+    var normalizer = new PULNormalizer();
+    var p = new PUL();
+    p.addUpdatePrimitive(UPFactory.delete_from_object(target, "b")); // a.b
+    p.addUpdatePrimitive(UPFactory[upd](target, "a", 0)); // a.a, effective
+    p.addUpdatePrimitive(UPFactory[upd](target, "b", 0)); // a.b, non-effective
+    target.path = "a.b.c";
+    p.addUpdatePrimitive(UPFactory[upd](target, "d", 0)); // a.b.c.d, non-effective
+
+    p.addUpdatePrimitive(UPFactory.delete_from_object(target2, "c")); // c
+    p.addUpdatePrimitive(UPFactory[upd](target2, "b", 0)); // b, effective
+    p.addUpdatePrimitive(UPFactory[upd](target2, "c", 0)); // c, non-effective
+    target2.path = "c";
+    p.addUpdatePrimitive(UPFactory[upd](target2, "d", 0)); // c.d, non-effective 
+
+    debugMsg("PUL before normalization: " + JSON.stringify(p,null,2));
+    p = normalizer.normalize(p);
+    if (p.error) { 
+      debugMsg("Error:", p.error);
+    }
+    assertNormalized(p);
+
+    assert.equal(p[upd].length, 2);
+    var targets = normalizer.computeTargets(p);
+    assert.ok(_.contains(targets[upd + "_selected"], "collection0:0:a.a"));
+    assert.ok(_.contains(targets[upd + "_selected"], "collection0:0:b"));
+  };
+
+  function testNonEffectiveArr(upd) {
+    var target = {
+      collection: 'collection0',
+      key: 0,
+      path: "a"
+    };
+    var target2 = {
+      collection: 'collection0',
+      key: 0
+    };
+    var normalizer = new PULNormalizer();
+    var p = new PUL();
+    p.addUpdatePrimitive(UPFactory.delete_from_object(target, "b")); // a.b
+    target.path = "a.a";
+    p.addUpdatePrimitive(UPFactory[upd](target, 1, [0])); // a.a:1, effective
+    target.path = "a.b";
+    p.addUpdatePrimitive(UPFactory[upd](target, 1, [0])); // a.b:1, non-effective
+    target.path = "a.b.c.d";
+    p.addUpdatePrimitive(UPFactory[upd](target, 1, [0])); // a.b.c.d:1, non-effective
+
+    p.addUpdatePrimitive(UPFactory.delete_from_object(target2, "c")); // c
+    target2.path = "b";
+    p.addUpdatePrimitive(UPFactory[upd](target2, 1, [0])); // b:1, effective
+    target2.path = "c";
+    p.addUpdatePrimitive(UPFactory[upd](target2, 1, [0])); // c:1, non-effective
+    target2.path = "c.d";
+    p.addUpdatePrimitive(UPFactory[upd](target2, 1, [0])); // c.d:1, non-effective 
+
+    debugMsg("PUL before normalization: " + JSON.stringify(p,null,2));
+    p = normalizer.normalize(p);
+    if (p.error) { 
+      debugMsg("Error:", p.error);
+    }
+    assertNormalized(p);
+
+    var targets = normalizer.computeTargets(p);
+    var source = targets[upd + "_selected"] || targets[upd];
+    assertArrayContents(source, 
+        ["collection0:0:a.a:1", "collection0:0:b:1"]);
+  };
+
 
   function assertNormalized(pul){
     debugMsg("Asserting that PUL is normalized...");
@@ -86,7 +172,7 @@ define(function(require, exports, module) {
     // Unique UP with same target
     asserting("delete-from-object UPs are unique w.r.t. target");
     assertUnique(targets.delete_from_object);
-    
+
     // 5. jupd:replace-in-object
     // Unique UP with same target
     asserting("replace-in-object UPs are unique w.r.t. target");
@@ -114,7 +200,7 @@ define(function(require, exports, module) {
     // Unique UP with same target
     asserting("delete-from-array UPs are unique w.r.t. target");
     assertUnique(targets.delete_from_array);
-   
+
     // 9. jupd:replace-in-array
     // Unique UP with same target
     asserting("replace-in-array UPs are unique w.r.t. target");
@@ -141,6 +227,8 @@ define(function(require, exports, module) {
         collection: 'collection1'
       };
       var normalizer = new PULNormalizer();
+
+      // 1. Valid PUL containing inserts, deletes
       var p = new PUL();
       var up = UPFactory.insert(target, [{id: 0, from: "insert"}]);
       p.addUpdatePrimitive(up);
@@ -153,10 +241,39 @@ define(function(require, exports, module) {
       p.addUpdatePrimitive(UPFactory.del(target, [1,2,3]));
       p.addUpdatePrimitive(UPFactory.del(target, [2,3,4]));
       p.addUpdatePrimitive(UPFactory.del(target2, [1,2,3]));
-      
+
       p = normalizer.normalize(p);
-      
       assertNormalized(p);
+
+
+      // 2. Invalid PUL (conflicting inserts)
+      p = new PUL();
+      var obj = {id: 1, from: "insert"};
+      p.addUpdatePrimitive(UPFactory.insert(target, [obj])); 
+      obj.id = 2;
+      p.addUpdatePrimitive(UPFactory.insert(target, [obj])); 
+      obj.id = 1;
+      p.addUpdatePrimitive(UPFactory.insert(target, [obj])); 
+
+      p = normalizer.normalize(p);
+      assert.ok(p.error);
+      debugMsg(p.error);
+    },
+
+    "test: noneffective replace-in-object": function() {
+      testNonEffective("replace_in_object");
+    },
+
+    "test: noneffective rename-in-object": function() {
+      testNonEffective("rename_in_object");
+    },
+
+    "test: noneffective replace-in-array": function() {
+      testNonEffectiveArr("replace_in_array");
+    },
+
+    "test: noneffective insert-into-array": function() {
+      testNonEffectiveArr("insert_into_array");
     },
 
     "test: insert-into-object": function() {
@@ -167,8 +284,9 @@ define(function(require, exports, module) {
         collection: 'collection1'
       };
       var normalizer = new PULNormalizer();
-      var p = new PUL();
 
+      // 1. Valid PUL containg insert-into-object
+      var p = new PUL();
       var obj = {a: 1, b: {c: 2}};
       var obj2 = {d: 1, e: 1, f: 1};
       p.addUpdatePrimitive(UPFactory.insert_into_object(target,obj));
@@ -180,6 +298,7 @@ define(function(require, exports, module) {
 
       assertNormalized(p);
 
+      // 2. Invalid PUL (key conflict of inserted (key,value) pairs)
       p = new PUL();
       p.addUpdatePrimitive(UPFactory.insert_into_object(target,obj));
       p.addUpdatePrimitive(UPFactory.insert_into_object(target,obj));
@@ -187,79 +306,115 @@ define(function(require, exports, module) {
       assert.ok(p.error);
       debugMsg(p.error);
     },
-    
-    "test: replace-in-object, delete-from-object": function() {
-      var target = {
-        collection: 'collection0',
-        key: 0,
-        path: "a"
-      };
-      var target2 = {
-        collection: 'collection0',
-        key: 0
-      };
-      var normalizer = new PULNormalizer();
+
+    "test: delete-from-object": function() {
+      var target = { collection: 'c' };
+      var normalizer = new PULNormalizer();      
+
       var p = new PUL();
-      p.addUpdatePrimitive(UPFactory.delete_from_object(target, "b")); // a.b
-      p.addUpdatePrimitive(UPFactory.replace_in_object(target, "a", 0)); // a.a, effective
-      p.addUpdatePrimitive(UPFactory.replace_in_object(target, "b", 0)); // a.b, non-effective
-      target.path = "a.b.c";
-      p.addUpdatePrimitive(UPFactory.replace_in_object(target, "d", 0)); // a.b.c.d, non-effective
+      // Multiple UPs with same target: valid -> merged, duplicates removed
+      var names = ["a", "b", "c"];
+      p.addUpdatePrimitive(UPFactory.delete_from_object(target, names));
+      p.addUpdatePrimitive(UPFactory.delete_from_object(target, names));
+      p.addUpdatePrimitive(UPFactory.delete_from_object(target, names));
 
-      p.addUpdatePrimitive(UPFactory.delete_from_object(target2, "c")); // c
-      p.addUpdatePrimitive(UPFactory.replace_in_object(target2, "b", 0)); // b, effective
-      p.addUpdatePrimitive(UPFactory.replace_in_object(target2, "c", 0)); // c, non-effective
-      target2.path = "c";
-      p.addUpdatePrimitive(UPFactory.replace_in_object(target2, "d", 0)); // c.d, non-effective 
-
-      debugMsg("PUL before normalization: " + JSON.stringify(p,null,2));
       p = normalizer.normalize(p);
-      if (p.error) { 
-        debugMsg("Error:", p.error);
-      }
+      assertNormalized(p);
+    }, 
+
+    "test: replace-in-object": function() {
+      var target = { collection: 'c', key: 0 };
+      var target2 = { collection: 'c', key: 1};
+      var normalizer = new PULNormalizer();
+
+      var p = new PUL();
+      p.addUpdatePrimitive(UPFactory.replace_in_object(target, "a", "b"));
+      p.addUpdatePrimitive(UPFactory.replace_in_object(target, "b", "a"));
+      p.addUpdatePrimitive(UPFactory.replace_in_object(target2, "a", "b"));
+      p = normalizer.normalize(p);
       assertNormalized(p);
 
-      assert.equal(p.replace_in_object.length, 2);
-      var targets = normalizer.computeTargets(p);
-      assert.ok(_.contains(targets.replace_in_object_selected, "collection0:0:a.a"));
-      assert.ok(_.contains(targets.replace_in_object_selected, "collection0:0:b"));
+      // Multiple UPs with same target+selector: error
+      p.addUpdatePrimitive(UPFactory.replace_in_object(target, "a", "b"));
+
+      p = normalizer.normalize(p);
+      assert.ok(p.error);
+      debugMsg(p.error);
+    }, 
+
+    "test: rename-in-object": function() {
+      var target = { collection: 'c', key: 0 };
+      var target2 = { collection: 'c', key: 1};
+      var normalizer = new PULNormalizer();
+
+      var p = new PUL();
+      p.addUpdatePrimitive(UPFactory.rename_in_object(target, "a", "b"));
+      p.addUpdatePrimitive(UPFactory.rename_in_object(target, "b", "a"));
+      p.addUpdatePrimitive(UPFactory.rename_in_object(target2, "a", "b"));
+      p = normalizer.normalize(p);
+      assertNormalized(p);
+
+      // Multiple UPs with same target+selector: error
+      p.addUpdatePrimitive(UPFactory.rename_in_object(target, "a", "b"));
+
+      p = normalizer.normalize(p);
+      assert.ok(p.error);
+      debugMsg(p.error);
+    },     
+
+    "test: insert-into-array": function(){
+      var target = { collection: 'c', key: 0, path: "arr" };
+      var normalizer = new PULNormalizer();
+
+      var p = new PUL();
+      var items = [1,2,3];
+      var items2 = [3,4,5];
+      var items3 = [5,6,7];
+
+      // Multiple UPs with same target: merged
+      p.addUpdatePrimitive(UPFactory.insert_into_array(target, 1, items));
+      p.addUpdatePrimitive(UPFactory.insert_into_array(target, 1, items2));
+      p.addUpdatePrimitive(UPFactory.insert_into_array(target, 1, items3));
+
+      p = normalizer.normalize(p);
+      assertNormalized(p);
+
+      assertArrayContents(p.insert_into_array[0].params[1],
+          items.concat(items2).concat(items3));      
+    },     
+
+    "test: delete-from-array": function(){
+      var target = { collection: 'c', key: 0, path: "arr"};
+      var normalizer = new PULNormalizer();
+
+      var p = new PUL();
+
+      // Multiple UPs with same target: merged
+      p.addUpdatePrimitive(UPFactory.delete_from_array(target, 1));
+      p.addUpdatePrimitive(UPFactory.delete_from_array(target, 2));
+      p.addUpdatePrimitive(UPFactory.delete_from_array(target, 1));
+      p.addUpdatePrimitive(UPFactory.delete_from_array(target, 1));
+
+      p = normalizer.normalize(p);
+      assertNormalized(p);
+      assert.equal(p.delete_from_array.length, 2);
     },
-   
-    "test: rename-in-object, delete-from-object": function() {
-      var target = {
-        collection: 'collection0',
-        key: 0,
-        path: "a"
-      };
-      var target2 = {
-        collection: 'collection0',
-        key: 0
-      };
+
+    "test: replace-in-array": function(){
+      var target = { collection: 'c', key: 0 };
       var normalizer = new PULNormalizer();
+
       var p = new PUL();
-      p.addUpdatePrimitive(UPFactory.delete_from_object(target, "b")); // a.b
-      p.addUpdatePrimitive(UPFactory.rename_in_object(target, "a", 0)); // a.a, effective
-      p.addUpdatePrimitive(UPFactory.rename_in_object(target, "b", 0)); // a.b, non-effective
-      target.path = "a.b.c";
-      p.addUpdatePrimitive(UPFactory.rename_in_object(target, "d", 0)); // a.b.c.d, non-effective
 
-      p.addUpdatePrimitive(UPFactory.delete_from_object(target2, "c")); // c
-      p.addUpdatePrimitive(UPFactory.rename_in_object(target2, "b", 0)); // b, effective
-      p.addUpdatePrimitive(UPFactory.rename_in_object(target2, "c", 0)); // c, non-effective
-      target2.path = "c";
-      p.addUpdatePrimitive(UPFactory.rename_in_object(target2, "d", 0)); // c.d, non-effective 
+      // Multiple UPs with same target+selector: error 
+      p.addUpdatePrimitive(UPFactory.replace_in_array(target, 1, "a"));
+      p.addUpdatePrimitive(UPFactory.replace_in_array(target, 2, "a"));
+      p.addUpdatePrimitive(UPFactory.replace_in_array(target, 1, "a"));
+      p.addUpdatePrimitive(UPFactory.replace_in_array(target, 1, "a"));
 
-      debugMsg("PUL before normalization: " + JSON.stringify(p,null,2));
       p = normalizer.normalize(p);
-      if (p.error) { 
-        debugMsg("Error:", p.error);
-      }
-      assertNormalized(p);
-
-      assert.equal(p.rename_in_object.length, 2);
-      var targets = normalizer.computeTargets(p);
-      assert.ok(_.contains(targets.rename_in_object_selected, "collection0:0:a.a"));
-      assert.ok(_.contains(targets.rename_in_object_selected, "collection0:0:b"));
+      assert.ok(p.error);
+      debugMsg(p.error);
     }
   }
 });
