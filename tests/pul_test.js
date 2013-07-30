@@ -31,6 +31,13 @@ define(function(require, exports, module) {
     assert.equal(_.difference(arr, items).length, 0);
   }
 
+  function assertSortedByIndex(arr){
+    var isSorted =  _.every(arr, function(value, i, arr){
+      return i === arr.length-1 || value.params[0] >= arr[i+1].params[0];
+    });
+    assert.ok(isSorted);
+  }
+
   function assertUnique(arr){
     assert.equal(arr.length, _.uniq(arr).length);
   }
@@ -195,11 +202,16 @@ define(function(require, exports, module) {
     // Unique UP with same target
     asserting("insert-into-array UPs are unique w.r.t. target");
     assertUnique(targets.insert_into_array);
+    // Sorted descendingly by index
+    asserting("insert-into-array UPs are sorted");
+    assertSortedByIndex(pul.insert_into_array);
 
     // 8. jupd:delete-from-array
     // Unique UP with same target
     asserting("delete-from-array UPs are unique w.r.t. target");
     assertUnique(targets.delete_from_array);
+    asserting("delete_from_array UPs are sorted");
+    assertSortedByIndex(pul.delete_from_array);
 
     // 9. jupd:replace-in-array
     // Unique UP with same target
@@ -208,6 +220,9 @@ define(function(require, exports, module) {
     // No replace on deleted objects
     asserting("there are no replace-in-array UPs for deleted elements");
     assertNoIntersection(targets.replace_in_array, targets.delete_from_array);        
+    asserting("replace-in-array UPs are sorted");
+    assertSortedByIndex(pul.replace_in_array);
+
 
     debugMsg("...PUL normalization assertion complete.");
 
@@ -375,11 +390,13 @@ define(function(require, exports, module) {
       p.addUpdatePrimitive(UPFactory.insert_into_array(target, 1, items));
       p.addUpdatePrimitive(UPFactory.insert_into_array(target, 1, items2));
       p.addUpdatePrimitive(UPFactory.insert_into_array(target, 1, items3));
+      p.addUpdatePrimitive(UPFactory.insert_into_array(target, 2, items3));
+      p.addUpdatePrimitive(UPFactory.insert_into_array(target, 3, items3));
 
       p = normalizer.normalize(p);
       assertNormalized(p);
 
-      assertArrayContents(p.insert_into_array[0].params[1],
+      assertArrayContents(p.insert_into_array[2].params[1],
           items.concat(items2).concat(items3));      
     },     
 
@@ -392,12 +409,13 @@ define(function(require, exports, module) {
       // Multiple UPs with same target: merged
       p.addUpdatePrimitive(UPFactory.delete_from_array(target, 1));
       p.addUpdatePrimitive(UPFactory.delete_from_array(target, 2));
+      p.addUpdatePrimitive(UPFactory.delete_from_array(target, 3));
       p.addUpdatePrimitive(UPFactory.delete_from_array(target, 1));
       p.addUpdatePrimitive(UPFactory.delete_from_array(target, 1));
 
       p = normalizer.normalize(p);
       assertNormalized(p);
-      assert.equal(p.delete_from_array.length, 2);
+      assert.equal(p.delete_from_array.length, 3);
     },
 
     "test: replace-in-array": function(){
@@ -409,6 +427,7 @@ define(function(require, exports, module) {
       // Multiple UPs with same target+selector: error 
       p.addUpdatePrimitive(UPFactory.replace_in_array(target, 1, "a"));
       p.addUpdatePrimitive(UPFactory.replace_in_array(target, 2, "a"));
+      p.addUpdatePrimitive(UPFactory.replace_in_array(target, 3, "a"));
       p.addUpdatePrimitive(UPFactory.replace_in_array(target, 1, "a"));
       p.addUpdatePrimitive(UPFactory.replace_in_array(target, 1, "a"));
 

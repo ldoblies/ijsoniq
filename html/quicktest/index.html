@@ -41,8 +41,6 @@
     <br/>
     <button onclick="testReplaceInObject()">IJSONiq: replace-in-object</button>
     <br/>
-    <button onclick="testReplace()">IJSONiq: replace</button>
-    <br/>
     <button onclick="testRenameInObject()">IJSONiq: rename-in-object</button>
     <br/>
     <button onclick="testArrInsert()">IJSONiq: insert-into-array</button>
@@ -65,7 +63,16 @@
 <script type="text/javascript" src="../../require.js"></script>
 <script type="text/javascript">
   
-  require(['../../lib/idbwrapper', '../../lib/ijsoniq', '../../lib/pul'], function(IDBWrapper, IJSONiq, PUL){});
+  require.config({
+    shim: {
+      underscore: {
+        exports: '_'
+      }
+    }
+  });
+  require(['../../lib/idbwrapper', '../../lib/ijsoniq', '../../lib/pul', '../../lib/underscore'], function(IDBWrapper, IJSONiq, PUL, _){
+      window._ = _;
+    });
 
 
   function onload () {
@@ -84,8 +91,6 @@
       lastname: lastnames[Math.floor(Math.random() * 5)],
       firstname: firstnames[Math.floor(Math.random() * 4)],
       age: Math.floor(Math.random() * (100 - 20)) + 20,
-      //arr: [1,2,3,4,5,6,7,8,9,1,2,3,4,5,6,7,8,9,1,2,3,4,5,6,7,8,9,1,2,3,4,5,6,7,8,9,1,2,3,4,5,6,7,8,9],
-      arr: [1,2,3,4,5,6,7,8,9],
       id: id++
     };
     store.put(dataObj, function (result) {
@@ -166,7 +171,7 @@
     var IJSONiq = requirejs('../../lib/ijsoniq').IJSONiq;
     IJSONiq.insert_into_object(target, toInsert, function(){
       target.path = undefined;
-      var toInsert = {arr: [1,2,3]};
+      var toInsert = {arr: [1,2,3], anArray: [1,2,3]};
       IJSONiq.insert_into_object(target, toInsert);
     });
 }
@@ -349,13 +354,6 @@ function testTx() {
 
     var p = new PUL();
 
-    // Insert name/value pairs
-    /*
-    var insertObj = {aValue: 1, anArray: [1,2,3], anObject: {a: 1, b:2, c:1}};
-    var up = UPFactory.insert_into_object(target, insertObj);
-    p.addUpdatePrimitive(up);
-    */
-
     // Delete anObject.a and anObject.c
     target.path = "anObject";
     up = UPFactory.delete_from_object(target, ["a"]);
@@ -363,33 +361,30 @@ function testTx() {
     up = UPFactory.delete_from_object(target, ["c"]);
     p.addUpdatePrimitive(up);
 
-    // Replace the value of anObject.b
-    up = UPFactory.replace_in_object(target, "b", 1);
-    p.addUpdatePrimitive(up);
-
     // Rename anObject.b
     up = UPFactory.rename_in_object(target, "b", "renamedInObject");
     p.addUpdatePrimitive(up);    
 
-    // Replace anObject.renamedInObject
-    up = UPFactory.replace_in_object(target, "renamedInObject", {replaced: "inObject"});
+    // Replace anObject.b
+    up = UPFactory.replace_in_object(target, "b", {replaced: "inObject"});
     p.addUpdatePrimitive(up);
 
 
     // Clear the array
     target.path = "anArray";
-    up = UPFactory.delete_from_array(target, 3);
+    up = UPFactory.delete_from_array(target, 1);
     p.addUpdatePrimitive(up);
     up = UPFactory.delete_from_array(target, 2);
     p.addUpdatePrimitive(up);
-    up = UPFactory.delete_from_array(target, 1);
+    up = UPFactory.delete_from_array(target, 3);
     p.addUpdatePrimitive(up);
 
     // Insert other values into the array
     up = UPFactory.insert_into_array(target, 1, [4, 4, 6]);   
     p.addUpdatePrimitive(up);
 
-    // Replace the 2nd 4 with 5
+    // Replace the 2nd array element 
+    // This UP should be ineffective, as the 2nd array element is also deleted
     // NOTE: 1-based index as in XQuery
     up = UPFactory.replace_in_array(target, 2, 5);
     p.addUpdatePrimitive(up);
@@ -398,13 +393,13 @@ function testTx() {
     up = UPFactory.insert(target, [{value: "fromInsert"}]);
     p.addUpdatePrimitive(up);
 
-    // Delete some items
-    //up = UPFactory.del(target, [2,3,4]);
-    //p.addUpdatePrimitive(up);
+    // Delete some documents
+    up = UPFactory.del(target, [2,3,4]);
+    p.addUpdatePrimitive(up);
 
     // Apply the PUL
     // In the end, the result should be:
-    // {aValue: 1, anArray: [4, 5, 6], 
+    // {aValue: 1, anArray: [4, 4, 6], 
     //  anObject: {renamedInObject: {replaced: "inObject"}}}
     var onResult = function(result, error){
       if (error){
@@ -412,9 +407,10 @@ function testTx() {
       }else{
         console.log("applyPul succeeded, inverted PUL:");
         console.log(JSON.stringify(result));
-        IJSONiq.applyPul(result, function(){
+        /*IJSONiq.applyPul(result, function(){
             console.log("Applying inverted PUL succeeded.");
             });
+        */
       }
     };
 
