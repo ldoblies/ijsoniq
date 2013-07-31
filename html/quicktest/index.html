@@ -354,6 +354,9 @@ function testTx() {
 
     var p = new PUL();
 
+    // Erroneous insert
+    p.addUpdatePrimitive(UPFactory.insert(target, {id: 10, val: "insertFromPul"}));
+
     // Delete anObject.a and anObject.c
     target.path = "anObject";
     up = UPFactory.delete_from_object(target, ["a"]);
