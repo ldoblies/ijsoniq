@@ -410,13 +410,18 @@ function testTx() {
       }else{
         console.log("applyPul succeeded, inverted PUL:");
         console.log(JSON.stringify(result));
-        /*IJSONiq.applyPul(result, function(){
-            console.log("Applying inverted PUL succeeded.");
+        IJSONiq.applyPul(result, function(result2, err){
+            if (err){
+            console.log("applying inverted PUL failed", err);
+            }else{
+            console.log("Applying inverted PUL succeeded. Inverted PUL:");
+            console.log(JSON.stringify(result2));
+            }
             });
-        */
       }
     };
 
+    console.log("applying PUL:\n" + JSON.stringify(p));
     IJSONiq.applyPul(p, onResult);
   }
 
