@@ -7,12 +7,13 @@ define(function(require, exports, module) {
 
   var assert = require("./assertions");
 
-  var VERBOSE = true;
+  var VERBOSE = false;
 
   var requirejs = require('../r');
   var PUL = require('../lib/pul').PendingUpdateList;
   var UPFactory = require('../lib/pul').UPFactory;
   var PULNormalizer = require('../lib/pulnormalizer').PULNormalizer;
+  var PULComposer = require('../lib/pulcomposer').PULComposer;
   var Utils = require('../lib/utils').Utils;
 
   var _ = require('../lib/underscore');
@@ -60,91 +61,12 @@ define(function(require, exports, module) {
     }
   };
 
-  function testNonEffective(upd) {
-    var target = {
-      collection: 'collection0',
-      key: 0,
-      path: "a"
-    };
-    var target2 = {
-      collection: 'collection0',
-      key: 0
-    };
-    var normalizer = new PULNormalizer();
-    var p = new PUL();
-    p.addUpdatePrimitive(UPFactory.delete_from_object(target, "b")); // a.b
-    p.addUpdatePrimitive(UPFactory[upd](target, "a", 0)); // a.a, effective
-    p.addUpdatePrimitive(UPFactory[upd](target, "b", 0)); // a.b, non-effective
-    target.path = "a.b.c";
-    p.addUpdatePrimitive(UPFactory[upd](target, "d", 0)); // a.b.c.d, non-effective
-
-    p.addUpdatePrimitive(UPFactory.delete_from_object(target2, "c")); // c
-    p.addUpdatePrimitive(UPFactory[upd](target2, "b", 0)); // b, effective
-    p.addUpdatePrimitive(UPFactory[upd](target2, "c", 0)); // c, non-effective
-    target2.path = "c";
-    p.addUpdatePrimitive(UPFactory[upd](target2, "d", 0)); // c.d, non-effective 
-
-    debugMsg("PUL before normalization: " + JSON.stringify(p,null,2));
-    p = normalizer.normalize(p);
-    if (p.error) { 
-      debugMsg("Error:", p.error);
-    }
-    assertNormalized(p);
-
-    assert.equal(p[upd].length, 2);
-    var targets = normalizer.computeTargets(p);
-    assert.ok(_.contains(targets[upd + "_selected"], "collection0:0:a.a"));
-    assert.ok(_.contains(targets[upd + "_selected"], "collection0:0:b"));
-  };
-
-  function testNonEffectiveArr(upd) {
-    var target = {
-      collection: 'collection0',
-      key: 0,
-      path: "a"
-    };
-    var target2 = {
-      collection: 'collection0',
-      key: 0
-    };
-    var normalizer = new PULNormalizer();
-    var p = new PUL();
-    p.addUpdatePrimitive(UPFactory.delete_from_object(target, "b")); // a.b
-    target.path = "a.a";
-    p.addUpdatePrimitive(UPFactory[upd](target, 1, [0])); // a.a:1, effective
-    target.path = "a.b";
-    p.addUpdatePrimitive(UPFactory[upd](target, 1, [0])); // a.b:1, non-effective
-    target.path = "a.b.c.d";
-    p.addUpdatePrimitive(UPFactory[upd](target, 1, [0])); // a.b.c.d:1, non-effective
-
-    p.addUpdatePrimitive(UPFactory.delete_from_object(target2, "c")); // c
-    target2.path = "b";
-    p.addUpdatePrimitive(UPFactory[upd](target2, 1, [0])); // b:1, effective
-    target2.path = "c";
-    p.addUpdatePrimitive(UPFactory[upd](target2, 1, [0])); // c:1, non-effective
-    target2.path = "c.d";
-    p.addUpdatePrimitive(UPFactory[upd](target2, 1, [0])); // c.d:1, non-effective 
-
-    debugMsg("PUL before normalization: " + JSON.stringify(p,null,2));
-    p = normalizer.normalize(p);
-    if (p.error) { 
-      debugMsg("Error:", p.error);
-    }
-    assertNormalized(p);
-
-    var targets = normalizer.computeTargets(p);
-    var source = targets[upd + "_selected"] || targets[upd];
-    assertArrayContents(source, 
-        ["collection0:0:a.a:1", "collection0:0:b:1"]);
-  };
-
-
   function assertNormalized(pul){
     debugMsg("Asserting that PUL is normalized...");
     asserting("PUL is valid");
     assert.ok(!pul.error);
     debugMsg("Input PUL:", JSON.stringify(pul, null, 2));
-    var targets = new PULNormalizer().computeTargets(pul);
+    var targets = pul.computeTargets();
     debugMsg("Computed PUL Targets: " + JSON.stringify(targets,null,2));
 
     // 1. jupd:insert
@@ -225,14 +147,18 @@ define(function(require, exports, module) {
 
 
     debugMsg("...PUL normalization assertion complete.");
+  };
 
-  }
 
-
+  function logIntroducedTargets(pul){
+    var iTargets = pul.computeIntroducedTargets();
+    console.log("PUL:\n" + JSON.stringify(pul,null,2));
+    console.log("Introduced Targets:\n" + JSON.stringify(iTargets,null,1));
+  };
 
   module.exports = {
 
-    name: "PUL",
+    name: "PUL Composition",
 
     "test: insert, delete": function() {
       var target = {
@@ -260,35 +186,7 @@ define(function(require, exports, module) {
       p = normalizer.normalize(p);
       assertNormalized(p);
 
-
-      // 2. Invalid PUL (conflicting inserts)
-      p = new PUL();
-      var obj = {id: 1, from: "insert"};
-      p.addUpdatePrimitive(UPFactory.insert(target, [obj])); 
-      obj.id = 2;
-      p.addUpdatePrimitive(UPFactory.insert(target, [obj])); 
-      obj.id = 1;
-      p.addUpdatePrimitive(UPFactory.insert(target, [obj])); 
-
-      p = normalizer.normalize(p);
-      assert.ok(p.error);
-      debugMsg(p.error);
-    },
-
-    "test: noneffective replace-in-object": function() {
-      testNonEffective("replace_in_object");
-    },
-
-    "test: noneffective rename-in-object": function() {
-      testNonEffective("rename_in_object");
-    },
-
-    "test: noneffective replace-in-array": function() {
-      testNonEffectiveArr("replace_in_array");
-    },
-
-    "test: noneffective insert-into-array": function() {
-      testNonEffectiveArr("insert_into_array");
+      logIntroducedTargets(p);
     },
 
     "test: insert-into-object": function() {
