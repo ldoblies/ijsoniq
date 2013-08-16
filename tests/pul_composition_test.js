@@ -25,11 +25,20 @@ define(function(require, exports, module) {
     debugMsg("Asserting that " +  text);
   }
 
-  /* Assert contents of arr matches items */
+  /* Assert contents of arr matches items (set semantics) */
   function assertArrayContents(arr, items){
     // console.log("arr: " + arr + ", items: " + items);
     assert.ok(arr.length === items.length);
     assert.equal(_.difference(arr, items).length, 0);
+  }
+
+  /* True iff arrays have identical contents (including order) */
+  function arraysMatch(arr1, arr2){
+    if (arr1.length - arr2.length) return false;
+    for (var i = 0; i < arr1.length; i++){
+      if (!objsEqual(arr1[i], arr2[i])) return false;
+    }
+    return true;
   }
 
   function assertSortedByIndex(arr){
@@ -37,6 +46,29 @@ define(function(require, exports, module) {
       return i === arr.length-1 || value.params[0] >= arr[i+1].params[0];
     });
     assert.ok(isSorted);
+  }
+
+  
+  function objsEqual(o1,o2){
+   // console.log("objsEqual("+JSON.stringify(o1)+","+JSON.stringify(o2)+")");
+    if (_.isArray(o1)){
+      return _.isArray(o2) && arraysMatch(arr1,arr2);
+    }else if (o1 === null || o2 === null || typeof o1 !== 'object' ||
+        typeof o2 !== 'object'){
+          return o1 === o2;
+        }
+    var keys1 = Object.keys(o1);
+    var keys2 = Object.keys(o2);
+    keys1.sort();
+    keys2.sort();
+    if (!arraysMatch(keys1, keys2)) return false;
+    for (var i = 0; i < keys1.length; i++){
+      if (!objsEqual(o1[keys1[i]], o2[keys1[i]])){
+        return false;
+      }  
+    }
+
+    return true;
   }
 
   function assertUnique(arr){
@@ -156,182 +188,195 @@ define(function(require, exports, module) {
     console.log("Introduced Targets:\n" + JSON.stringify(iTargets,null,1));
   };
 
+  function testComposition(p1,p2){
+    var normalizer = new PULNormalizer();
+    var composer = new PULComposer();
+
+    p1 = normalizer.normalize(p1);
+    p2 = normalizer.normalize(p2);
+    var composedPul = composer.compose(p1,p2);
+    console.log(JSON.stringify(composedPul,null,2));
+    return composedPul;
+  };
+
   module.exports = {
 
     name: "PUL Composition",
-
-    "test: insert, delete": function() {
+    
+    "test: on rename-in-object": function() {
+      var P1 = new PUL();
+      var P2 = new PUL();
       var target = {
-        collection: 'collection0'
+        collection: "c",
+        key: 1,
+        path: "a"
       };
-      var target2 = {
-        collection: 'collection1'
-      };
-      var normalizer = new PULNormalizer();
 
-      // 1. Valid PUL containing inserts, deletes
-      var p = new PUL();
-      var up = UPFactory.insert(target, [{id: 0, from: "insert"}]);
-      p.addUpdatePrimitive(up);
-      up = UPFactory.insert(target, [{id: 1, from: "insert"}]);
-      p.addUpdatePrimitive(up);
-      up = UPFactory.insert(target2, [{from: "insert"}]);
-      p.addUpdatePrimitive(up);
-      p.addUpdatePrimitive(up);
+      P1.addUpdatePrimitive(UPFactory.rename_in_object(target,"b","x"));
 
-      p.addUpdatePrimitive(UPFactory.del(target, [1,2,3]));
-      p.addUpdatePrimitive(UPFactory.del(target, [2,3,4]));
-      p.addUpdatePrimitive(UPFactory.del(target2, [1,2,3]));
+      //  This UP should have its name selector adapted to b
+      P2.addUpdatePrimitive(UPFactory.delete_from_object(target, "x"));
 
-      p = normalizer.normalize(p);
-      assertNormalized(p);
+      // This UP should have its path adapted to a.b
+      target.path = "a.x";
+      P2.addUpdatePrimitive(UPFactory.delete_from_object(target, "d"));
 
-      logIntroducedTargets(p);
+      // Containing deletes
+      var composed = testComposition(P1,P2);
+      assert.equal(composed.delete_from_object[0].params[0][0], "b");
+      assert.equal(composed.delete_from_object[1].target.path, "a.b");
+
+
+      P2 = new PUL();
+      target.path = "a";
+      //  This UP should have its name selector adapted to b
+      P2.addUpdatePrimitive(UPFactory.replace_in_object(target, "x", 1));
+
+      // This UP should not appear in the composed PUL but the rename above
+      // should be modified to rename "b" to "y"
+      P2.addUpdatePrimitive(UPFactory.rename_in_object(target, "x", "y"));
+
+      // All these UPs should have their path adapted to a.b
+      target.path = "a.x";
+      P2.addUpdatePrimitive(UPFactory.insert_into_object(target, {c:1}));
+      P2.addUpdatePrimitive(UPFactory.replace_in_object(target, "e", 1));
+      P2.addUpdatePrimitive(UPFactory.rename_in_object(target, "f", "g"));
+
+      // Containing no deletes
+      composed = testComposition(P1,P2);
+      assert.equal(composed.replace_in_object[0].params[0], "b");
+      assert.equal(composed.rename_in_object[0].params[0], "b");
+      assert.equal(composed.rename_in_object[0].params[1], "y");
+      assert.equal(composed.insert_into_object[0].target.path, "a.b");
+      assert.equal(composed.replace_in_object[1].target.path, "a.b");
+      assert.equal(composed.rename_in_object[1].target.path, "a.b");
+
     },
 
-    "test: insert-into-object": function() {
+    "test: on insert-into-object": function() {
+      var P1 = new PUL();
+      var P2 = new PUL();
       var target = {
-        collection: 'collection0'
+        collection: "c",
+        key: 1
       };
-      var target2 = {
-        collection: 'collection1'
-      };
-      var normalizer = new PULNormalizer();
 
-      // 1. Valid PUL containg insert-into-object
-      var p = new PUL();
-      var obj = {a: 1, b: {c: 2}};
-      var obj2 = {d: 1, e: 1, f: 1};
-      p.addUpdatePrimitive(UPFactory.insert_into_object(target,obj));
-      p.addUpdatePrimitive(UPFactory.insert_into_object(target,obj2));
+      P1.addUpdatePrimitive(UPFactory.insert_into_object(target,{b: 1, a: {b: {}}}));
       target.path = "c";
-      p.addUpdatePrimitive(UPFactory.insert_into_object(target,obj));
+      P1.addUpdatePrimitive(UPFactory.insert_into_object(target, {a: 1}));
 
-      p = normalizer.normalize(p);
+      //  This UP should remove a in the value of the first iio above 
+      delete target["path"];
+      P2.addUpdatePrimitive(UPFactory.delete_from_object(target, "a"));
 
-      assertNormalized(p);
+      // This UP should make the second iio above disappear
+      target.path = "c";
+      P2.addUpdatePrimitive(UPFactory.delete_from_object(target, "a"));
 
-      // 2. Invalid PUL (key conflict of inserted (key,value) pairs)
-      p = new PUL();
-      p.addUpdatePrimitive(UPFactory.insert_into_object(target,obj));
-      p.addUpdatePrimitive(UPFactory.insert_into_object(target,obj));
-      p = normalizer.normalize(p);
-      assert.ok(p.error);
-      debugMsg(p.error);
+      var composed = testComposition(P1,P2);
+      assert.equal(composed.numUps(), 1);
+      assert.ok(objsEqual(composed.insert_into_object[0].params[0], {b:1}));
+
+
+      P2 = new PUL();
+      delete target["path"];
+      //  These UPs should modify the value in the 1. iio above
+      P2.addUpdatePrimitive(UPFactory.replace_in_object(target, "b", {}));
+      P2.addUpdatePrimitive(UPFactory.rename_in_object(target, "b", "x"));
+      
+      target.path = "a.b";
+      P2.addUpdatePrimitive(UPFactory.insert_into_object(target, {c:1, d:2}));
+
+      composed = testComposition(P1,P2);
+      assert.equal(composed.numUps(), 2);
+      assert.ok(objsEqual(composed.insert_into_object[0].params[0], {x:{}, a: {b: {c:1,d:2}}}));
+      assert.ok(objsEqual(composed.insert_into_object[1].params[0], {a: 1}));
     },
 
-    "test: delete-from-object": function() {
-      var target = { collection: 'c' };
-      var normalizer = new PULNormalizer();      
+    "test: on replace-in-object": function() {
+      var P1 = new PUL();
+      var P2 = new PUL();
+      var target = {
+        collection: "c",
+        key: 1
+      };
 
-      var p = new PUL();
-      // Multiple UPs with same target: valid -> merged, duplicates removed
-      var names = ["a", "b", "c"];
-      p.addUpdatePrimitive(UPFactory.delete_from_object(target, names));
-      p.addUpdatePrimitive(UPFactory.delete_from_object(target, names));
-      p.addUpdatePrimitive(UPFactory.delete_from_object(target, names));
+      P1.addUpdatePrimitive(UPFactory.replace_in_object(target,"a", {b: 0, c: {}}));
+      P1.addUpdatePrimitive(UPFactory.replace_in_object(target,"b", {b: 0}));
 
-      p = normalizer.normalize(p);
-      assertNormalized(p);
-    }, 
+      // Should change 1st replace value to {c: {}}
+      target.path = "a";
+      P2.addUpdatePrimitive(UPFactory.delete_from_object(target, "b"));
 
-    "test: replace-in-object": function() {
-      var target = { collection: 'c', key: 0 };
-      var target2 = { collection: 'c', key: 1};
-      var normalizer = new PULNormalizer();
+      // Should make the 2nd replace disappear
+      // Should be added to the PUL
+      target.path = "";
+      P2.addUpdatePrimitive(UPFactory.delete_from_object(target, "b"));
 
-      var p = new PUL();
-      p.addUpdatePrimitive(UPFactory.replace_in_object(target, "a", "b"));
-      p.addUpdatePrimitive(UPFactory.replace_in_object(target, "b", "a"));
-      p.addUpdatePrimitive(UPFactory.replace_in_object(target2, "a", "b"));
-      p = normalizer.normalize(p);
-      assertNormalized(p);
+      var composed = testComposition(P1,P2);
+      assert.equal(composed.numUps(), 2);
+      assert.ok(objsEqual(composed.replace_in_object[0].params[1], {c: {}}));
 
-      // Multiple UPs with same target+selector: error
-      p.addUpdatePrimitive(UPFactory.replace_in_object(target, "a", "b"));
 
-      p = normalizer.normalize(p);
-      assert.ok(p.error);
-      debugMsg(p.error);
-    }, 
+      P2 = new PUL();
+      //  These UPs should modify the value in the 1. rio above
+      target.path = "a";
+      P2.addUpdatePrimitive(UPFactory.replace_in_object(target, "b", 1));
+      P2.addUpdatePrimitive(UPFactory.rename_in_object(target, "b", "x"));
+      
+      target.path = "a.c"; 
+      P2.addUpdatePrimitive(UPFactory.insert_into_object(target, {d:0, e:0}));
 
-    "test: rename-in-object": function() {
-      var target = { collection: 'c', key: 0 };
-      var target2 = { collection: 'c', key: 1};
-      var normalizer = new PULNormalizer();
-
-      var p = new PUL();
-      p.addUpdatePrimitive(UPFactory.rename_in_object(target, "a", "b"));
-      p.addUpdatePrimitive(UPFactory.rename_in_object(target, "b", "a"));
-      p.addUpdatePrimitive(UPFactory.rename_in_object(target2, "a", "b"));
-      p = normalizer.normalize(p);
-      assertNormalized(p);
-
-      // Multiple UPs with same target+selector: error
-      p.addUpdatePrimitive(UPFactory.rename_in_object(target, "a", "b"));
-
-      p = normalizer.normalize(p);
-      assert.ok(p.error);
-      debugMsg(p.error);
-    },     
-
-    "test: insert-into-array": function(){
-      var target = { collection: 'c', key: 0, path: "arr" };
-      var normalizer = new PULNormalizer();
-
-      var p = new PUL();
-      var items = [1,2,3];
-      var items2 = [3,4,5];
-      var items3 = [5,6,7];
-
-      // Multiple UPs with same target: merged
-      p.addUpdatePrimitive(UPFactory.insert_into_array(target, 1, items));
-      p.addUpdatePrimitive(UPFactory.insert_into_array(target, 1, items2));
-      p.addUpdatePrimitive(UPFactory.insert_into_array(target, 1, items3));
-      p.addUpdatePrimitive(UPFactory.insert_into_array(target, 2, items3));
-      p.addUpdatePrimitive(UPFactory.insert_into_array(target, 3, items3));
-
-      p = normalizer.normalize(p);
-      assertNormalized(p);
-
-      assertArrayContents(p.insert_into_array[2].params[1],
-          items.concat(items2).concat(items3));      
-    },     
-
-    "test: delete-from-array": function(){
-      var target = { collection: 'c', key: 0, path: "arr"};
-      var normalizer = new PULNormalizer();
-
-      var p = new PUL();
-
-      // Multiple UPs with same target: merged
-      p.addUpdatePrimitive(UPFactory.delete_from_array(target, 1));
-      p.addUpdatePrimitive(UPFactory.delete_from_array(target, 2));
-      p.addUpdatePrimitive(UPFactory.delete_from_array(target, 3));
-      p.addUpdatePrimitive(UPFactory.delete_from_array(target, 1));
-      p.addUpdatePrimitive(UPFactory.delete_from_array(target, 1));
-
-      p = normalizer.normalize(p);
-      assertNormalized(p);
-      assert.equal(p.delete_from_array.length, 3);
+      composed = testComposition(P1,P2);
+      assert.equal(composed.numUps(), 2);
+      assert.ok(objsEqual(composed.replace_in_object[0].params[1], {x:1, c: {d:0, e:0}}));
+      assert.ok(objsEqual(composed.replace_in_object[1].params[1], {b: 0}));
     },
 
-    "test: replace-in-array": function(){
-      var target = { collection: 'c', key: 0 };
-      var normalizer = new PULNormalizer();
+    "test: on insert": function() {
+      var P1 = new PUL();
+      var P2 = new PUL();
+      var target = {
+        collection: "c"
+      };
 
-      var p = new PUL();
+      P1.addUpdatePrimitive(UPFactory.insert(target,[{id: 1}]));
+      P1.addUpdatePrimitive(UPFactory.insert(target,[{id: 2}]));
+      P1.addUpdatePrimitive(UPFactory.insert(target,[{id: 3}]));
 
-      // Multiple UPs with same target+selector: error 
-      p.addUpdatePrimitive(UPFactory.replace_in_array(target, 1, "a"));
-      p.addUpdatePrimitive(UPFactory.replace_in_array(target, 2, "a"));
-      p.addUpdatePrimitive(UPFactory.replace_in_array(target, 3, "a"));
-      p.addUpdatePrimitive(UPFactory.replace_in_array(target, 1, "a"));
-      p.addUpdatePrimitive(UPFactory.replace_in_array(target, 1, "a"));
+      target.collection = "d";
+      P1.addUpdatePrimitive(UPFactory.insert(target, [{id:1}]));
+     
 
-      p = normalizer.normalize(p);
-      assert.ok(p.error);
-      debugMsg(p.error);
+      // This UP should remove the 1. and 3. insert above 
+      // (remove from the items list of the insert up)
+      target.collection = "c";
+      target.key = 1;
+      P2.addUpdatePrimitive(UPFactory.del(target, [1,3]));
+
+      // This UP should remove the 4. insert above
+      P2.addUpdatePrimitive(UPFactory.del(target, [1]));
+
+      var composed = testComposition(P1,P2);
+      assert.equal(composed.numUps(), 1);
+      assert.equal(composed.insert[0].params[0].length, 1);
+      assert.ok(objsEqual(composed.insert[0].params[0][0], {id: 2}));
+
+
+      P1 = new PUL();
+      P1.addUpdatePrimitive(UPFactory.insert(target,[{id: 1, a: 0, y: 0}]));
+      
+      P2 = new PUL();
+      target.key = 1;
+      //  These UPs should modify the value in the 1. insert above
+      P2.addUpdatePrimitive(UPFactory.replace_in_object(target, "a", 1));
+      P2.addUpdatePrimitive(UPFactory.rename_in_object(target, "a", "x"));
+      P2.addUpdatePrimitive(UPFactory.insert_into_object(target, {b: 2, c: 3}));
+      P2.addUpdatePrimitive(UPFactory.delete_from_object(target, "y"));
+
+      composed = testComposition(P1,P2);
+      assert.equal(composed.numUps(), 1);
+      assert.ok(objsEqual(composed.replace_in_object[0].params[1], {x:1, b:2, c:3}));
     }
   }
 });

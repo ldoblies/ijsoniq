@@ -1,3 +1,3 @@
 #!/bin/sh
 node-inspector&
-node --debug-brk tests/pul_test.js
+node --debug-brk tests/pul_composition_test.js
