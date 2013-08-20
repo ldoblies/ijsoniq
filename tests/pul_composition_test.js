@@ -355,6 +355,7 @@ define(function(require, exports, module) {
       P2.addUpdatePrimitive(UPFactory.del(target, [1,3]));
 
       // This UP should remove the 4. insert above
+      target.collection = "d";
       P2.addUpdatePrimitive(UPFactory.del(target, [1]));
 
       var composed = testComposition(P1,P2);
@@ -363,6 +364,7 @@ define(function(require, exports, module) {
       assert.ok(objsEqual(composed.insert[0].params[0][0], {id: 2}));
 
 
+      target.collection = "c";
       P1 = new PUL();
       P1.addUpdatePrimitive(UPFactory.insert(target,[{id: 1, a: 0, y: 0}]));
       
@@ -376,7 +378,7 @@ define(function(require, exports, module) {
 
       composed = testComposition(P1,P2);
       assert.equal(composed.numUps(), 1);
-      assert.ok(objsEqual(composed.replace_in_object[0].params[1], {x:1, b:2, c:3}));
+      assert.ok(objsEqual(composed.insert[0].params[0][0], {id:1, x:1, b:2, c:3}));
     }
   }
 });
