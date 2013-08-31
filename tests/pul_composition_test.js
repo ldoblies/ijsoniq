@@ -67,7 +67,6 @@ define(function(require, exports, module) {
         return false;
       }  
     }
-
     return true;
   }
 
@@ -195,7 +194,11 @@ define(function(require, exports, module) {
     p1 = normalizer.normalize(p1);
     p2 = normalizer.normalize(p2);
     var composedPul = composer.compose(p1,p2);
-    console.log(JSON.stringify(composedPul,null,2));
+    console.log("" + composedPul);
+    if (composedPul.error){
+      console.log(composedPul.error);
+      assert.ok(false);
+    }
     return composedPul;
   };
 
@@ -332,6 +335,26 @@ define(function(require, exports, module) {
       assert.ok(objsEqual(composed.replace_in_object[0].params[1], {x:1, c: {d:0, e:0}}));
       assert.ok(objsEqual(composed.replace_in_object[1].params[1], {b: 0}));
     },
+
+    "test: double replace-in-object": function() {
+      var P1 = new PUL();
+      var P2 = new PUL();
+      var target = {
+        collection: "c",
+        key: 1
+      };
+
+      P1.addUpdatePrimitive(UPFactory.replace_in_object(target,"n", 0));
+
+      P2 = new PUL();
+      
+      P2.addUpdatePrimitive(UPFactory.replace_in_object(target, "n", 1));
+
+      var composed = testComposition(P1,P2);
+      assert.equal(composed.numUps(), 1);
+      assert.ok(objsEqual(composed.replace_in_object[0].params[1], 1));
+    },
+
 
     "test: on insert": function() {
       var P1 = new PUL();
