@@ -27,7 +27,6 @@ define(function(require, exports, module) {
 
   /* Assert contents of arr matches items (set semantics) */
   function assertArrayContents(arr, items){
-    // console.log("arr: " + arr + ", items: " + items);
     assert.ok(arr.length === items.length);
     assert.equal(_.difference(arr, items).length, 0);
   }
@@ -50,7 +49,6 @@ define(function(require, exports, module) {
 
   
   function objsEqual(o1,o2){
-   // console.log("objsEqual("+JSON.stringify(o1)+","+JSON.stringify(o2)+")");
     if (_.isArray(o1)){
       return _.isArray(o2) && arraysMatch(arr1,arr2);
     }else if (o1 === null || o2 === null || typeof o1 !== 'object' ||
@@ -183,8 +181,8 @@ define(function(require, exports, module) {
 
   function logIntroducedTargets(pul){
     var iTargets = pul.computeIntroducedTargets();
-    console.log("PUL:\n" + JSON.stringify(pul,null,2));
-    console.log("Introduced Targets:\n" + JSON.stringify(iTargets,null,1));
+    debugMsg("PUL:\n" + JSON.stringify(pul,null,2));
+    debugMsg("Introduced Targets:\n" + JSON.stringify(iTargets,null,1));
   };
 
   function testComposition(p1,p2){
@@ -194,9 +192,9 @@ define(function(require, exports, module) {
     p1 = normalizer.normalize(p1);
     p2 = normalizer.normalize(p2);
     var composedPul = composer.compose(p1,p2);
-    console.log("" + composedPul);
+    debugMsg("" + composedPul);
     if (composedPul.error){
-      console.log(composedPul.error);
+      debugMsg(composedPul.error);
       assert.ok(false);
     }
     return composedPul;

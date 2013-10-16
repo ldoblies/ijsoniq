@@ -13,15 +13,13 @@ define(function(require, exports, module) {
   var fs = require('fs');
   var path = require('path');
 
-//  var ObjectDiff = require('../lib/objectDiff');
-
   module.exports = {
 
     name: "Utils",
 
-"test: keyValuePairs": function() {
-  var obj = {"a": 1, "b": 2, c: {d: 4}};
-},
+  "test: keyValuePairs": function() {
+    var obj = {"a": 1, "b": 2, c: {d: 4}};
+  },
 
   "test: hasKey": function() {
     var obj = {a: 1, b: {c: 2}};
@@ -43,8 +41,6 @@ define(function(require, exports, module) {
 
     var inserted = Utils.getContainingObject(obj, "c.d.e.f.g.h.i.j", true);
     inserted["j"] = 1;
-    //console.log(inserted);
-    //console.log(JSON.stringify(obj));
   },
 
   "test: set": function() {
@@ -55,7 +51,6 @@ define(function(require, exports, module) {
     assert.equal(obj.a, 2);
 
     assert.ok(Utils.set(obj, "c.d.e", 3));
-    //console.log(obj);
 
     assert.ok(!Utils.set(obj, "a.b", 1));
     assert.ok(!Utils.set(obj, "b.c.d", 1));
@@ -66,11 +61,8 @@ define(function(require, exports, module) {
     var arr = obj.b.c;
 
     assert.ok(Utils.arrayInsert(obj, "b.c", 0, [1,2]));
-    //console.log(obj);
     assert.ok(Utils.arrayInsert(obj, "b.c", 3, [3,4]));
-    //console.log(obj);
     assert.ok(Utils.arrayInsert(obj, "b.c", 7, [5,6]));
-    //console.log(obj);
   },
 
   "test: arrayDelete": function() {
@@ -78,13 +70,9 @@ define(function(require, exports, module) {
     var arr = obj.b.c;
 
     assert.ok(Utils.arrayDelete(obj, "b.c", 1));
-    //console.log(obj);
     assert.ok(Utils.arrayDelete(obj, "b.c", 0));
-    //console.log(obj);
     assert.ok(Utils.arrayDelete(obj, "b.c", 1));
-    //console.log(obj); 
     assert.ok(!Utils.arrayDelete(obj, "b.c", 1));
-    //console.log(obj);
   },
 
   "test: serializeTarget": function(){

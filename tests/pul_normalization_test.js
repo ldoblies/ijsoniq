@@ -7,7 +7,7 @@ define(function(require, exports, module) {
 
   var assert = require("./assertions");
 
-  var VERBOSE = true;
+  var VERBOSE = false;
 
   var requirejs = require('../r');
   var PUL = require('../lib/pul').PendingUpdateList;
@@ -26,7 +26,6 @@ define(function(require, exports, module) {
 
   /* Assert contents of arr matches items */
   function assertArrayContents(arr, items){
-    // console.log("arr: " + arr + ", items: " + items);
     assert.ok(arr.length === items.length);
     assert.equal(_.difference(arr, items).length, 0);
   }
