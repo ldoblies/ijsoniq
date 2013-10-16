@@ -402,7 +402,25 @@ define(function(require, exports, module) {
       composed = testComposition(P1,P2);
       assert.equal(composed.numUps(), 1);
       assert.ok(objsEqual(composed.insert[0].params[0][0], {id:1, x:1, b:2, c:3}));
-    }
+    },
+
+    
+    "test: insert-into-object primary key collision": function() {
+      var P1 = new PUL();
+      var P2 = new PUL();
+      var target = {
+        collection: "c"
+      };
+
+      P1.addUpdatePrimitive(UPFactory.insert_into_object(target,{a: 1}));
+
+      P2.addUpdatePrimitive(UPFactory.insert_into_object(target,{a: 2}));
+      P2.addUpdatePrimitive(UPFactory.delete_from_object(target, ["a"]));
+
+      var composed = testComposition(P1,P2);     
+      assert.equal(composed.numUps(), 1);
+      assert.ok(objsEqual(composed.insert_into_object[0].params[0], {a: 2}));
+    },
   }
 });
 
